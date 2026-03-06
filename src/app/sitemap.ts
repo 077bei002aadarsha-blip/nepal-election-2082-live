@@ -8,38 +8,25 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nepal-election-liv
 export default function sitemap(): MetadataRoute.Sitemap {
   const data = generateMockData();
 
+  // Only include URLs that actually exist as pages (no /province/ or /results index — they 404)
   const constituencies = data.provinces.flatMap((p) =>
     p.districts.flatMap((d) =>
       d.constituencies.map((c) => ({
         url: `${SITE_URL}/results/${c.id}`,
         lastModified: new Date(),
         changeFrequency: "always" as const,
-        priority: 0.9,
+        priority: 0.85,
       }))
     )
   );
-
-  const provinces = data.provinces.map((p) => ({
-    url: `${SITE_URL}/province/${p.id}`,
-    lastModified: new Date(),
-    changeFrequency: "always" as const,
-    priority: 0.8,
-  }));
 
   return [
     {
       url: SITE_URL,
       lastModified: new Date(),
-      changeFrequency: "always",
-      priority: 1,
+      changeFrequency: "always" as const,
+      priority: 1.0,
     },
-    {
-      url: `${SITE_URL}/results`,
-      lastModified: new Date(),
-      changeFrequency: "always",
-      priority: 0.95,
-    },
-    ...provinces,
     ...constituencies,
   ];
 }

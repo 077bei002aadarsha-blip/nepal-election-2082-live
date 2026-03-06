@@ -95,7 +95,11 @@ export default function HomePage() {
 
         {data && (
           <>
-            {/* â”€â”€ CNN-LEVEL HERO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* SEO: keyword-rich heading — read by Google, invisible to sighted users */}
+            <h2 className="sr-only">
+              Nepal Election Result 2082 LIVE — चुनाव नतिजा २०८२ — All 165 Constituencies,
+              Vote Counts from Election Commission Nepal (ECN). RSP, NC, UML, Maoist seat tally.
+            </h2>            {/* â”€â”€ CNN-LEVEL HERO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <HeroDashboard data={data} />
 
             {/* â”€â”€ NATIONAL PARTY SUMMARY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
