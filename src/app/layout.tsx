@@ -157,6 +157,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ne" className={`${inter.variable} ${devanagari.variable}`} suppressHydrationWarning>
       <head>
+        <meta 
+          name="google-site-verification" 
+          content="google6f9f417f75f467cb" 
+        />
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/apple-icon.png" />
         <link rel="manifest" href="/manifest.json" />
