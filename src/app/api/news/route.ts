@@ -1,9 +1,12 @@
-// app/api/news/route.ts — Live election news ticker items
+﻿// app/api/news/route.ts — Dynamic news ticker derived from live election data
 
 import { NextResponse } from "next/server";
+import { fetchElectionResults } from "@/lib/ecn-parser";
+import { PARTY_INFO } from "@/lib/mock-data";
 
 export const runtime = "nodejs";
-export const revalidate = 60; // Cache for 60s
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export interface NewsItem {
   id: string;
@@ -14,78 +17,95 @@ export interface NewsItem {
   timestamp: string;
 }
 
-const NEWS_ITEMS: NewsItem[] = [
-  {
-    id: "n1",
-    titleNe: "🔥 बालेन शाह KTM-6 +14,839 मतले विजयी घोषित",
-    titleEn: "🔥 Balen Shah KTM-6 DECLARED winner by +14,839 votes",
-    hot: true,
-    category: "declared",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "n2",
-    titleNe: "⚔️ काठमाडौं ५: एमाले केवल +186 मतले अग्रणी — तीव्र प्रतिस्पर्धा!",
-    titleEn: "⚔️ Kathmandu-5: UML leads by only +186 votes — knife-edge race!",
-    hot: true,
-    category: "close",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "n3",
-    titleNe: "📈 रास्वपा बागमती प्रदेशमा १०/२६ क्षेत्र जित्दै",
-    titleEn: "📈 RSP sweeping Bagmati — 10/26 seats leading",
-    hot: true,
-    category: "trend",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "n4",
-    titleNe: "📊 धादिङ १: आशिका तामाङ +२,२८१ अग्रणी — उलटफेर सम्भव",
-    titleEn: "📊 Dhading-1: Aashika Tamang leads +2,281 — surprise result",
-    hot: false,
-    category: "trend",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "n5",
-    titleNe: "🗳️ झापा ५: जम्मा मतगणनाको ६२% पूरा — काँग्रेस अग्रणी",
-    titleEn: "🗳️ Jhapa-5: 62% counted — NC leading with early advantage",
-    hot: false,
-    category: "update",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "n6",
-    titleNe: "🔥 रवि लामिछाने चितवन २ मा +4,200 मतले विजयी",
-    titleEn: "🔥 Rabi Lamichhane wins Chitwan-2 by +4,200 votes — RSP holds",
-    hot: true,
-    category: "declared",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "n7",
-    titleNe: "📉 मधेश प्रदेश: राजपा र एमाले कडा प्रतिस्पर्धामा",
-    titleEn: "📉 Madhesh Province: RJP vs UML in tight battle for 8 seats",
-    hot: false,
-    category: "trend",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "n8",
-    titleNe: "⚡ राष्ट्रिय: ६५.३% मतगणना पूरा — रास्वपा राष्ट्रिय अग्रणी बनाम",
-    titleEn: "⚡ National: 65.3% counted — RSP national popular vote leader",
-    hot: true,
-    category: "update",
-    timestamp: new Date().toISOString(),
-  },
-];
-
 export async function GET() {
-  return NextResponse.json(NEWS_ITEMS, {
+  const data = await fetchElectionResults();
+  const now = new Date().toISOString();
+  const items: NewsItem[] = [];
+
+  const allConsts = data.provinces.flatMap((p) =>
+    p.districts.flatMap((d) => d.constituencies)
+  );
+
+  // 1. Declared seats — actual winners from current data
+  const declared = allConsts.filter((c) => c.status === "declared").slice(0, 4);
+  for (const [i, c] of declared.entries()) {
+    const winner = c.candidates.find((x) => x.isWinner) ?? c.candidates[0];
+    if (!winner) continue;
+    const info = PARTY_INFO[winner.party];
+    items.push({
+      id: `declared-${i}`,
+      titleNe: `🔥 ${c.nameNe}: ${winner.name} (${info?.shortNe ?? winner.party}) +${winner.leadBy?.toLocaleString("en-IN") ?? "—"} मतले विजयी`,
+      titleEn: `🔥 ${c.nameEn}: ${winner.nameEn ?? winner.name} (${info?.shortEn ?? winner.party}) DECLARED +${winner.leadBy?.toLocaleString("en-IN") ?? "—"} votes`,
+      hot: true,
+      category: "declared",
+      timestamp: now,
+    });
+  }
+
+  // 2. Knife-edge races (margin < 800 votes)
+  const closeRaces = allConsts
+    .filter((c) => c.leadingMargin > 0 && c.leadingMargin < 800 && c.status !== "not_started")
+    .sort((a, b) => a.leadingMargin - b.leadingMargin)
+    .slice(0, 3);
+  for (const [i, c] of closeRaces.entries()) {
+    const info = PARTY_INFO[c.leadingParty];
+    items.push({
+      id: `close-${i}`,
+      titleNe: `⚔️ ${c.nameNe}: ${info?.shortNe ?? c.leadingParty} केवल +${c.leadingMargin.toLocaleString("en-IN")} मतले अग्रणी!`,
+      titleEn: `⚔️ ${c.nameEn}: ${info?.shortEn ?? c.leadingParty} leads by only +${c.leadingMargin.toLocaleString("en-IN")} votes!`,
+      hot: true,
+      category: "close",
+      timestamp: now,
+    });
+  }
+
+  // 3. Province sweep leaders
+  for (const [i, p] of data.provinces.filter((p) => p.seatsReported > 0).slice(0, 2).entries()) {
+    const info = PARTY_INFO[p.leadingParty];
+    items.push({
+      id: `prov-${i}`,
+      titleNe: `📈 ${p.nameNe}: ${info?.shortNe ?? p.leadingParty} ${p.seatsReported}/${p.totalSeats} सिटमा अग्रणी`,
+      titleEn: `📈 ${p.nameEn}: ${info?.shortEn ?? p.leadingParty} leads in ${p.seatsReported}/${p.totalSeats} seats`,
+      hot: false,
+      category: "trend",
+      timestamp: now,
+    });
+  }
+
+  // 4. National overall progress
+  const topParty = Object.entries(data.nationalTotals)
+    .sort(([, a], [, b]) => (b?.seats ?? 0) - (a?.seats ?? 0))[0];
+  const topInfo = topParty ? PARTY_INFO[topParty[0] as keyof typeof PARTY_INFO] : null;
+  items.push({
+    id: "national",
+    titleNe: `⚡ राष्ट्रिय: ${data.seatsReported}/१६५ सिट घोषित — ${topInfo?.shortNe ?? topParty?.[0] ?? "—"} अग्रणी | ${data.progress.percentage.toFixed(0)}% मतगणना`,
+    titleEn: `⚡ National: ${data.seatsReported}/165 seats declared — ${topInfo?.shortEn ?? topParty?.[0] ?? "—"} leading | ${data.progress.percentage.toFixed(0)}% counted`,
+    hot: true,
+    category: "update",
+    timestamp: now,
+  });
+
+  // 5. Biggest win margin
+  const biggestWin = allConsts
+    .filter((c) => c.status === "declared" && c.leadingMargin > 0)
+    .sort((a, b) => b.leadingMargin - a.leadingMargin)[0];
+  if (biggestWin) {
+    const winner = biggestWin.candidates[0];
+    const info = PARTY_INFO[winner?.party];
+    items.push({
+      id: "bigwin",
+      titleNe: `🏆 सबैभन्दा ठूलो जित: ${biggestWin.nameNe} — ${winner?.name ?? ""} (${info?.shortNe ?? ""}) +${biggestWin.leadingMargin.toLocaleString("en-IN")} मत`,
+      titleEn: `🏆 Biggest win: ${biggestWin.nameEn} — ${winner?.nameEn ?? winner?.name ?? ""} (${info?.shortEn ?? ""}) +${biggestWin.leadingMargin.toLocaleString("en-IN")} votes`,
+      hot: false,
+      category: "trend",
+      timestamp: now,
+    });
+  }
+
+  return NextResponse.json(items, {
     status: 200,
     headers: {
-      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+      "Cache-Control": "no-store, must-revalidate",
       "Content-Type": "application/json",
     },
   });
