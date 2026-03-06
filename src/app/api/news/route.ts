@@ -22,6 +22,19 @@ export async function GET() {
   const now = new Date().toISOString();
   const items: NewsItem[] = [];
 
+  // If ECN is unreachable, return "awaiting" placeholders instead of fake mock data
+  if (!data.isLive) {
+    const placeholders: NewsItem[] = [
+      { id: "await-1", titleNe: "🗳️ नेपाल चुनाव २०८२: मतगणना सुरु हुन बाँकी छ — ECN नतिजाको लागि प्रतीक्षा गर्नुहोस्", titleEn: "🗳️ Nepal Election 2082: Counting not yet started — Awaiting results from ECN", hot: false, category: "update", timestamp: now },
+      { id: "await-2", titleNe: "⚡ सबै १६५ निर्वाचन क्षेत्रको नतिजा यहाँ लाइभ देखाइनेछ", titleEn: "⚡ All 165 constituency results will appear here LIVE as counting begins", hot: false, category: "update", timestamp: now },
+      { id: "await-3", titleNe: "📡 चुनाव आयोग नेपाल (ECN) बाट सिधा डेटा — नतिजा आउनासाथ अपडेट हुनेछ", titleEn: "📡 Live data direct from Election Commission Nepal (ECN) — updates as results arrive", hot: false, category: "update", timestamp: now },
+    ];
+    return NextResponse.json(placeholders, {
+      status: 200,
+      headers: { "Cache-Control": "no-store, must-revalidate", "Content-Type": "application/json" },
+    });
+  }
+
   const allConsts = data.provinces.flatMap((p) =>
     p.districts.flatMap((d) => d.constituencies)
   );

@@ -17,6 +17,15 @@ interface TrendItem {
 }
 
 function buildTrends(data: ElectionResults): TrendItem[] {
+  // Data is mock fallback (ECN unreachable) — show neutral placeholder
+  if (!data.isLive) {
+    return [
+      { icon: "🗳️", textNe: "नेपाल चुनाव २०८२: मतगणना सुरु हुन बाँकी — ECN नतिजाको प्रतीक्षा", textEn: "Nepal Election 2082: Counting not yet started — Awaiting ECN results", accent: "text-slate-400" },
+      { icon: "⚡", textNe: "सबै १६५ निर्वाचन क्षेत्रको नतिजा लाइभ देखाइनेछ", textEn: "All 165 constituency results will appear here LIVE as counting begins", accent: "text-blue-400" },
+      { icon: "📡", textNe: "चुनाव आयोग नेपाल (ECN) बाट सिधा लाइभ डेटा", textEn: "Live data direct from Election Commission Nepal (ECN)", accent: "text-indigo-400" },
+    ];
+  }
+
   const items: TrendItem[] = [];
   const allConsts = data.provinces.flatMap((p) =>
     p.districts.flatMap((d) => d.constituencies),

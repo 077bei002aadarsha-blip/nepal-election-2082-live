@@ -1196,7 +1196,7 @@ export function generateMockData(): ElectionResults {
     totalVotesCounted: totalVotes,
     totalRegisteredVoters: Math.floor(totalVotes / 0.647),
     overallTurnout: 64.7,
-    isLive: true,
+    isLive: false,
     countingStatus: `${counted}/${totalSeats} क्षेत्रमा गणना जारी`,
     provinces,
     nationalTotals,
