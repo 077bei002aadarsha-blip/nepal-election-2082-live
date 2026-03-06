@@ -2,15 +2,18 @@
 
 import type { Metadata } from "next";
 import { generateMockData } from "@/lib/mock-data";
-import { getStatusBadge, getPartyColorClass } from "@/lib/ecn-parser";
+import { fetchElectionResults, getStatusBadge, getPartyColorClass } from "@/lib/ecn-parser";
 import { PARTY_INFO } from "@/lib/mock-data";
 import Link from "next/link";
+
+// Allow dynamic paths (ECN IDs differ from mock IDs)
+export const dynamicParams = true;
+
 interface Props {
   params: Promise<{ id: string }>;
 }
 
-function getAllConstituencies() {
-  const data = generateMockData();
+function getAllConstituenciesFromData(data: Awaited<ReturnType<typeof fetchElectionResults>>) {
   return data.provinces.flatMap((p) =>
     p.districts.flatMap((d) =>
       d.constituencies.map((c) => ({
@@ -26,13 +29,19 @@ function getAllConstituencies() {
 }
 
 export async function generateStaticParams() {
-  const constituencies = getAllConstituencies();
-  return constituencies.map((c) => ({ id: c.id }));
+  // Pre-build pages for all mock constituency IDs so the site works offline
+  const data = generateMockData();
+  return data.provinces.flatMap((p) =>
+    p.districts.flatMap((d) =>
+      d.constituencies.map((c) => ({ id: c.id }))
+    )
+  );
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const constituencies = getAllConstituencies();
+  const liveData = await fetchElectionResults().catch(() => generateMockData());
+  const constituencies = getAllConstituenciesFromData(liveData);
   const c = constituencies.find((x) => x.id === id);
 
   if (!c) return { title: "Constituency Not Found" };
@@ -53,7 +62,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ConstituencyPage({ params }: Props) {
   const { id } = await params;
-  const constituencies = getAllConstituencies();
+  const liveData = await fetchElectionResults().catch(() => generateMockData());
+  const constituencies = getAllConstituenciesFromData(liveData);
   const c = constituencies.find((x) => x.id === id);
 
   if (!c) {

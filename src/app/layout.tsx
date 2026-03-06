@@ -168,6 +168,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Preconnect for performance */}
         <link rel="preconnect" href="https://election.gov.np" />
         <link rel="dns-prefetch" href="https://election.gov.np" />
+        {/* Google Analytics 4 */}
+        {process.env.NEXT_PUBLIC_GA_ID && (
+          <>
+            <script
+              async
+              src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
+            />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+                  gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', { page_path: window.location.pathname });
+                `,
+              }}
+            />
+          </>
+        )}
         {/* Google Adsense placeholder */}
         {process.env.NEXT_PUBLIC_ADSENSE_ID && (
           <script

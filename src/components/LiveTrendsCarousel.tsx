@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { LanguageContext } from "@/app/providers";
 import { PARTY_INFO } from "@/lib/mock-data";
 import type { ElectionResults } from "@/lib/types";
+import type { NewsItem } from "@/app/api/news/route";
 
 interface TrendItem {
   icon: string;
@@ -83,8 +84,33 @@ function buildTrends(data: ElectionResults): TrendItem[] {
 export default function LiveTrendsCarousel({ data }: { data: ElectionResults }) {
   const { language } = useContext(LanguageContext);
   const ne = language === "ne";
-  const trends = buildTrends(data);
   const [idx, setIdx] = useState(0);
+  const [newsItems, setNewsItems] = useState<TrendItem[]>([]);
+
+  // Fetch from /api/news and merge with computed trends
+  useEffect(() => {
+    async function loadNews() {
+      try {
+        const res = await fetch("/api/news", { next: { revalidate: 60 } } as RequestInit);
+        if (!res.ok) return;
+        const items: NewsItem[] = await res.json();
+        const mapped: TrendItem[] = items.map((n) => ({
+          icon: n.titleEn.split(" ")[0], // emoji prefix
+          textNe: n.titleNe,
+          textEn: n.titleEn,
+          accent: n.hot ? "text-red-500" : "text-indigo-400",
+        }));
+        setNewsItems(mapped);
+      } catch {/* silently fall back to computed trends */}
+    }
+    loadNews();
+    const poll = setInterval(loadNews, 60_000);
+    return () => clearInterval(poll);
+  }, []);
+
+  const computedTrends = buildTrends(data);
+  // Hot news items first, then computed live trends
+  const trends = newsItems.length > 0 ? [...newsItems, ...computedTrends] : computedTrends;
 
   // Auto-advance every 8 seconds
   useEffect(() => {
