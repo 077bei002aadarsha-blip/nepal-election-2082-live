@@ -15,7 +15,6 @@ export interface NewsItem {
   hot: boolean;
   category: "declared" | "close" | "trend" | "update";
   timestamp: string;
-  source?: string;
 }
 
 // ─── RSS sources ────────────────────────────────────────────────────────────
@@ -94,7 +93,6 @@ export async function GET() {
       hot: i < 3,
       category: "update" as const,
       timestamp: now,
-      source: item.source,
     }));
     return NextResponse.json(items, {
       status: 200,
@@ -109,9 +107,9 @@ export async function GET() {
   if (!data.isLive) {
     // ECN also unreachable — show "awaiting" placeholders
     return NextResponse.json([
-      { id: "await-1", titleNe: "🗳️ नेपाल चुनाव २०८२: मतगणना सुरु हुन बाँकी — नतिजाको प्रतीक्षा गर्नुहोस्", titleEn: "🗳️ Nepal Election 2082: Counting not yet started — Awaiting results", hot: false, category: "update", timestamp: now, source: "nepal-election-live.vercel.app" },
-      { id: "await-2", titleNe: "⚡ सबै १६५ निर्वाचन क्षेत्रको नतिजा यहाँ लाइभ देखाइनेछ", titleEn: "⚡ All 165 constituency results will appear here LIVE once counting begins", hot: false, category: "update", timestamp: now, source: "nepal-election-live.vercel.app" },
-      { id: "await-3", titleNe: "📡 चुनाव आयोग नेपाल (ECN) बाट सिधा लाइभ डेटा", titleEn: "📡 Live data direct from Election Commission Nepal (ECN)", hot: false, category: "update", timestamp: now, source: "ECN" },
+      { id: "await-1", titleNe: "🗳️ नेपाल चुनाव २०८२: मतगणना सुरु हुन बाँकी — नतिजाको प्रतीक्षा गर्नुहोस्", titleEn: "🗳️ Nepal Election 2082: Counting not yet started — Awaiting results", hot: false, category: "update", timestamp: now },
+      { id: "await-2", titleNe: "⚡ सबै १६५ निर्वाचन क्षेत्रको नतिजा यहाँ लाइभ देखाइनेछ", titleEn: "⚡ All 165 constituency results will appear here LIVE once counting begins", hot: false, category: "update", timestamp: now },
+      { id: "await-3", titleNe: "📡 चुनाव आयोग नेपाल (ECN) बाट सिधा लाइभ डेटा", titleEn: "📡 Live data direct from Election Commission Nepal (ECN)", hot: false, category: "update", timestamp: now },
     ] satisfies NewsItem[], {
       status: 200,
       headers: { "Cache-Control": "no-store, must-revalidate", "Content-Type": "application/json" },
@@ -129,7 +127,7 @@ export async function GET() {
       id: `declared-${i}`,
       titleNe: `🔥 ${c.nameNe}: ${winner.name} (${info?.shortNe ?? winner.party}) +${winner.leadBy?.toLocaleString("en-IN") ?? "—"} मतले विजयी`,
       titleEn: `🔥 ${c.nameEn}: ${winner.nameEn ?? winner.name} (${info?.shortEn ?? winner.party}) DECLARED +${winner.leadBy?.toLocaleString("en-IN") ?? "—"} votes`,
-      hot: true, category: "declared", timestamp: now, source: "ECN",
+      hot: true, category: "declared", timestamp: now,
     });
   }
 
@@ -143,7 +141,7 @@ export async function GET() {
       id: `close-${i}`,
       titleNe: `⚔️ ${c.nameNe}: ${info?.shortNe ?? c.leadingParty} केवल +${c.leadingMargin.toLocaleString("en-IN")} मतले अग्रणी!`,
       titleEn: `⚔️ ${c.nameEn}: ${info?.shortEn ?? c.leadingParty} leads by only +${c.leadingMargin.toLocaleString("en-IN")} votes!`,
-      hot: true, category: "close", timestamp: now, source: "ECN",
+      hot: true, category: "close", timestamp: now,
     });
   }
 
@@ -153,7 +151,7 @@ export async function GET() {
     id: "national",
     titleNe: `⚡ राष्ट्रिय: ${data.seatsReported}/१६५ सिट घोषित — ${topInfo?.shortNe ?? topParty?.[0] ?? "—"} अग्रणी | ${data.progress.percentage.toFixed(0)}% मतगणना`,
     titleEn: `⚡ National: ${data.seatsReported}/165 seats declared — ${topInfo?.shortEn ?? topParty?.[0] ?? "—"} leading | ${data.progress.percentage.toFixed(0)}% counted`,
-    hot: true, category: "update", timestamp: now, source: "ECN",
+    hot: true, category: "update", timestamp: now,
   });
 
   return NextResponse.json(items, {

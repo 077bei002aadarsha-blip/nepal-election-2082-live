@@ -14,7 +14,6 @@ interface TrendItem {
   textNe: string;
   textEn: string;
   accent: string; // Tailwind text-color class
-  source?: string;
 }
 
 function buildTrends(data: ElectionResults): TrendItem[] {
@@ -109,7 +108,6 @@ export default function LiveTrendsCarousel({ data }: { data: ElectionResults }) 
           textNe: n.titleNe,
           textEn: n.titleEn,
           accent: n.hot ? "text-red-500" : "text-indigo-400",
-          source: n.source,
         }));
         setNewsItems(mapped);
       } catch {/* silently fall back to computed trends */}
@@ -181,7 +179,7 @@ export default function LiveTrendsCarousel({ data }: { data: ElectionResults }) 
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-[9px] text-slate-400 dark:text-slate-600">{current.source ?? "ECN · result.election.gov.np"}</span>
+        <span className="text-[9px] text-slate-400 dark:text-slate-600">ECN · result.election.gov.np</span>
         <span className="text-[9px] text-slate-400 dark:text-slate-600">
           {idx + 1}/{trends.length}
         </span>
