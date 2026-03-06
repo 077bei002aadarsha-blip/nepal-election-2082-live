@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 241, 245, 249;
+}
+
+.dark {
+  --foreground-rgb: 226, 232, 240;
+  --background-start-rgb: 2, 6, 23;
+  --background-end-rgb: 15, 23, 42;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  font-family: var(--font-inter), var(--font-devanagari), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-synthesis: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+/* Live pulse dot */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+.live-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: live-pulse 1.2s ease-in-out infinite;
+}
+
+/* Vote counter number flip */
+@keyframes num-flip {
+  0% { transform: translateY(-100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.num-flip { animation: num-flip 0.4s ease-out; }
+
+/* Slow pulse for floating disclaimer button */
+@keyframes pulse-slow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,.4); }
+  50% { box-shadow: 0 0 0 8px rgba(59,130,246,0); }
+}
+.animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+
+/* Province card hover */
+.province-card {
+  @apply transition-all duration-300 rounded-2xl border cursor-pointer;
+  @apply bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm;
+  @apply border-slate-200 dark:border-slate-700;
+  @apply hover:shadow-xl hover:scale-[1.02] hover:border-blue-400 dark:hover:border-blue-500;
+}
+
+/* Party color bars */
+.party-bar { @apply h-2 rounded-full transition-all duration-700 ease-out; }
+
+/* Sticky header */
+.sticky-header {
+  @apply sticky top-0 z-50 backdrop-blur-xl;
+  @apply bg-slate-900/95 border-b border-slate-700/50;
+}
+
+/* Mobile ad slot */
+.ad-slot { @apply overflow-hidden bg-slate-100 dark:bg-slate-800 rounded-xl; }
+
+/* Results table */
+.results-table th {
+  @apply text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400;
+  @apply py-3 px-4 text-left cursor-pointer hover:text-slate-100 transition-colors;
+}
+.results-table td {
+  @apply py-3 px-4 text-sm border-t border-slate-100 dark:border-slate-700/50;
+}
+.results-table tr:hover td {
+  @apply bg-blue-50/50 dark:bg-blue-900/20;
+}
+
+/* Map tooltip */
+.map-tooltip {
+  @apply absolute z-50 pointer-events-none;
+  @apply bg-slate-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl;
+}
