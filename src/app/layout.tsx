@@ -158,9 +158,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ne" className={`${inter.variable} ${devanagari.variable}`} suppressHydrationWarning>
       <head>
         <meta name="google-site-verification" content="qcxlfjBwiYU4WPvYvUguVKE92XceswVAwnuR25ohVuo" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/apple-icon.png" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="manifest" href="/manifest.json" />
+        {/* Auto-reload on stale chunk (ChunkLoadError after new deployment) */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){window.addEventListener('error',function(e){if(e.error&&(e.error.name==='ChunkLoadError'||/Loading chunk/.test(e.error.message))){var key='_chunkReload';if(!sessionStorage.getItem(key)){sessionStorage.setItem(key,'1');window.location.reload();}else{sessionStorage.removeItem(key);}}});})();` }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(electionSchema) }}
