@@ -34,7 +34,8 @@ export default function SeatMap({ data }: Props) {
       <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">
         {ne ? "सीट व्यवस्था" : "Seating Map"}
       </h3>
-      <div className="grid grid-cols-15 gap-1 justify-center">
+      <div className="grid gap-1 justify-center
+        grid-cols-[repeat(auto-fit,minmax(24px,1fr))] max-w-full">
         {seats.map((s, idx) => (
           <div
             key={s.id}
