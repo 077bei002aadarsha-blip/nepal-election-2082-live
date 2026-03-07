@@ -26,11 +26,18 @@ export default function NationalSummary({ data }: Props) {
         <h2 className="font-bold text-slate-800 dark:text-slate-100">
           {ne ? "राष्ट्रिय सारांश" : "National Summary"}
         </h2>
-        <span className="text-xs text-slate-500 dark:text-slate-400">
-          {ne
-            ? `बहुमत: ${majority} सिट`
-            : `Majority: ${majority} seats`}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {ne
+              ? `बहुमत: ${majority} सिट`
+              : `Majority: ${majority} seats`}
+          </span>
+          <span className="text-xs text-blue-500 dark:text-blue-400 font-semibold">
+            {ne
+              ? `अग्रणी: ${data.seatsLeading} सिट`
+              : `Leading: ${data.seatsLeading} seats`}
+          </span>
+        </div>
       </div>
 
       {/* majority line bar */}
