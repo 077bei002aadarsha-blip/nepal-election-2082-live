@@ -14,6 +14,18 @@ export default function NationalSummary({ data }: Props) {
     .filter(([, v]) => v.seats > 0 || v.votes > 0)
     .sort(([, a], [, b]) => b.seats - a.seats || b.votes - a.votes);
 
+  // calculate leading seats per party
+  const leadingTotals: Partial<Record<PartyCode, number>> = {};
+  data.provinces.forEach((prov) =>
+    prov.districts.forEach((dist) =>
+      dist.constituencies.forEach((con) => {
+        if (con.candidates[0]?.isLeading) {
+          leadingTotals[con.leadingParty] = (leadingTotals[con.leadingParty] ?? 0) + 1;
+        }
+      })
+    )
+  );
+
   const maxSeats = sorted[0]?.[1].seats ?? 1;
   const majority = Math.ceil(data.totalSeats / 2);
 
@@ -76,8 +88,7 @@ export default function NationalSummary({ data }: Props) {
             <tr className="text-[11px] font-semibold uppercase tracking-wider
               text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700">
               <th className="px-5 py-2 text-left">{ne ? "पार्टी" : "Party"}</th>
-              <th className="px-3 py-2 text-right">{ne ? "सिट" : "Seats"}</th>
-              <th className="px-3 py-2 text-right">{ne ? "मत" : "Votes"}</th>
+              <th className="px-3 py-2 text-right">{ne ? "सिट" : "Seats"}</th>              <th className="px-3 py-2 text-right">{ne ? "अग्रणी" : "Leading"}</th>              <th className="px-3 py-2 text-right">{ne ? "मत" : "Votes"}</th>
               <th className="px-5 py-2 text-right">%</th>
             </tr>
           </thead>
@@ -99,6 +110,9 @@ export default function NationalSummary({ data }: Props) {
                   </td>
                   <td className="px-3 py-2.5 text-right font-bold text-slate-800 dark:text-slate-100 tabular-nums">
                     {v.seats}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-bold text-blue-500 dark:text-blue-400 tabular-nums">
+                    {leadingTotals[pc] ?? 0}
                   </td>
                   <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-400 tabular-nums">
                     {v.votes.toLocaleString()}
