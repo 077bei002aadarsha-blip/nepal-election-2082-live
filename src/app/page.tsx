@@ -9,6 +9,7 @@ import HeroDashboard from "@/components/HeroDashboard";
 import ProvinceTabCarousel from "@/components/ProvinceTabCarousel";
 import ProvinceCard from "@/components/ProvinceCard";
 import NationalSummary from "@/components/NationalSummary";
+import SeatMap from "@/components/SeatMap";
 import PartyBarChart from "@/components/PartyBarChart";
 import ProvinceHeatmap from "@/components/ProvinceHeatmap";
 import LiveTrendsCarousel from "@/components/LiveTrendsCarousel";
@@ -104,6 +105,7 @@ export default function HomePage() {
 
             {/* â”€â”€ NATIONAL PARTY SUMMARY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <NationalSummary data={data} />
+            <SeatMap data={data} />
 
             {/* Charts: vote share bars + province heatmap */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
