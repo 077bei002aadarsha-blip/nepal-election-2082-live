@@ -169,6 +169,35 @@ export default function NationalSummary({ data }: Props) {
         </table>
       </div>
 
+      {/* declared winners list */}
+      <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700">
+        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">
+          {ne ? "घोषित विजेताहरू" : "Declared Winners"}
+        </h3>
+        <div className="max-h-40 overflow-y-auto text-[11px] text-slate-700 dark:text-slate-300">
+          {data.provinces.flatMap((p) =>
+            p.districts.flatMap((d) =>
+              d.constituencies
+                .filter((c) => c.status === "declared")
+                .map((c) => {
+                  const win = c.candidates.find((x) => x.isWinner) || c.candidates[0];
+                  const party = PARTY_INFO[win.party];
+                  return (
+                    <div key={c.id} className="flex justify-between mb-1">
+                      <span>
+                        {ne ? c.nameNe : c.nameEn} — {ne ? win.name : win.nameEn}
+                      </span>
+                      <span className={"font-semibold " + (party?.textColor ?? "text-gray-400") }>
+                        {ne ? (party?.shortNe ?? win.party) : (party?.shortEn ?? win.party)}
+                      </span>
+                    </div>
+                  );
+                })
+            )
+          )}
+        </div>
+      </div>
+
       <div className="px-5 py-2 border-t border-slate-100 dark:border-slate-700
         text-[11px] text-slate-400 dark:text-slate-500">
         {ne
