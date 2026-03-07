@@ -10,7 +10,7 @@ import type {
 
 // ─── Cache ─────────────────────────────────────────────────────────────────
 let cache: { data: ElectionResults; timestamp: number } | null = null;
-const CACHE_TTL = 30 * 1000; // 30s cache
+const CACHE_TTL = 10 * 1000; // 10s cache (more frequent updates)
 
 const ECN_BASE   = "https://result.election.gov.np";
 const ECN_PAGE   = `${ECN_BASE}/ElectionResultCentral2082.aspx`;

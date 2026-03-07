@@ -100,7 +100,7 @@ export default function LiveTrendsCarousel({ data }: { data: ElectionResults }) 
   useEffect(() => {
     async function loadNews() {
       try {
-        const res = await fetch("/api/news", { next: { revalidate: 60 } } as RequestInit);
+        const res = await fetch("/api/news", { next: { revalidate: 30 } } as RequestInit);
         if (!res.ok) return;
         const items: NewsItem[] = await res.json();
         const mapped: TrendItem[] = items.map((n) => ({
@@ -113,7 +113,7 @@ export default function LiveTrendsCarousel({ data }: { data: ElectionResults }) 
       } catch {/* silently fall back to computed trends */}
     }
     loadNews();
-    const poll = setInterval(loadNews, 60_000);
+    const poll = setInterval(loadNews, 30_000);
     return () => clearInterval(poll);
   }, []);
 

@@ -10,21 +10,60 @@ export default function NationalSummary({ data }: Props) {
   const { language } = useContext(LanguageContext);
   const ne = language === "ne";
 
-  const sorted = (Object.entries(data.nationalTotals) as [PartyCode, { seats: number; votes: number; percentage: number }][])
-    .filter(([, v]) => v.seats > 0 || v.votes > 0)
-    .sort(([, a], [, b]) => b.seats - a.seats || b.votes - a.votes);
+  // build display totals from raw data so that 'other' parties are split by name
+  type DisplayKey = string; // either a PartyCode or the actual party name for unknowns
+  interface Totals { seats: number; votes: number; percentage: number }
 
-  // calculate leading seats per party
-  const leadingTotals: Partial<Record<PartyCode, number>> = {};
+  const totalsMap: Record<DisplayKey, Totals> = {};
+  const leadingMap: Record<DisplayKey, number> = {};
+
   data.provinces.forEach((prov) =>
     prov.districts.forEach((dist) =>
       dist.constituencies.forEach((con) => {
-        if (con.candidates[0]?.isLeading) {
-          leadingTotals[con.leadingParty] = (leadingTotals[con.leadingParty] ?? 0) + 1;
+        const seatAwarded = con.status === "declared";
+        if (con.candidates[0]) {
+          const first = con.candidates[0];
+          const partyName =
+            first.party === "other"
+              ? ne
+                ? first.name
+                : first.nameEn
+              : PARTY_INFO[first.party]?.nameEn ?? first.party;
+
+          if (!totalsMap[partyName]) totalsMap[partyName] = { seats: 0, votes: 0, percentage: 0 };
+          totalsMap[partyName].votes += first.votes;
+          if (seatAwarded) totalsMap[partyName].seats += 1;
+
+          if (first.isLeading) {
+            leadingMap[partyName] = (leadingMap[partyName] ?? 0) + 1;
+          }
         }
+
+        // also count votes for other candidates so percentages reflect full vote count
+        con.candidates.slice(1).forEach((cand) => {
+          const partyName =
+            cand.party === "other"
+              ? ne
+                ? cand.name
+                : cand.nameEn
+              : PARTY_INFO[cand.party]?.nameEn ?? cand.party;
+          if (!totalsMap[partyName]) totalsMap[partyName] = { seats: 0, votes: 0, percentage: 0 };
+          totalsMap[partyName].votes += cand.votes;
+        });
       })
     )
   );
+
+  // compute percentages
+  const totalVotes = data.totalVotesCounted || Object.values(totalsMap).reduce((s, t) => s + t.votes, 0);
+  Object.values(totalsMap).forEach((t) => {
+    if (totalVotes > 0) t.percentage = Math.round((t.votes / totalVotes) * 1000) / 10;
+  });
+
+  const sorted = Object.entries(totalsMap)
+    .filter(([, v]) => v.seats > 0 || v.votes > 0)
+    .sort(([, a], [, b]) => b.seats - a.seats || b.votes - a.votes);
+
 
   const maxSeats = sorted[0]?.[1].seats ?? 1;
   const majority = Math.ceil(data.totalSeats / 2);
@@ -112,7 +151,7 @@ export default function NationalSummary({ data }: Props) {
                     {v.seats}
                   </td>
                   <td className="px-3 py-2.5 text-right font-bold text-blue-500 dark:text-blue-400 tabular-nums">
-                    {leadingTotals[pc] ?? 0}
+                    {leadingMap[pc] ?? 0}
                   </td>
                   <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-400 tabular-nums">
                     {v.votes.toLocaleString()}
