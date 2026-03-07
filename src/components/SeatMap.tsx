@@ -29,18 +29,38 @@ export default function SeatMap({ data }: Props) {
     )
   );
 
+  // semicircular layout parameters
+  const containerWidth = 360;
+  const containerHeight = 180;
+  const centerX = containerWidth / 2;
+  const centerY = containerHeight; // base of semicircle
+  const radius = containerWidth * 0.45;
+
+  const positionedSeats = seats.map((s, idx) => {
+    const angle = Math.PI * idx / (seats.length - 1); // 0..π
+    const x = centerX + radius * Math.cos(angle - Math.PI); // start left
+    const y = centerY - radius * Math.sin(angle);
+    return { ...s, x, y };
+  });
+
   return (
     <div className="my-6">
       <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">
         {ne ? "सीट व्यवस्था" : "Seating Map"}
       </h3>
-      <div className="grid gap-1 justify-center
-        grid-cols-[repeat(auto-fit,minmax(24px,1fr))] max-w-full">
-        {seats.map((s, idx) => (
+      <div
+        className="relative mx-auto"
+        style={{ width: containerWidth, height: containerHeight }}
+      >
+        {positionedSeats.map((s) => (
           <div
             key={s.id}
-            className="w-6 h-6 rounded-full cursor-pointer"
-            style={{ backgroundColor: s.color }}
+            className="absolute w-6 h-6 rounded-full cursor-pointer"
+            style={{
+              backgroundColor: s.color,
+              left: `${s.x - 12}px`,
+              top: `${s.y - 12}px`,
+            }}
             title={s.name}
           />
         ))}
