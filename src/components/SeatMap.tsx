@@ -1,274 +1,325 @@
-"use client";
+import { useState, useMemo } from "react";
 
-import { useContext, useMemo, useState } from "react";
-import { LanguageContext } from "@/app/providers";
-import type { ElectionResults, Constituency } from "@/lib/types";
-import { PARTY_INFO } from "@/lib/mock-data";
+// Party colors & info
+const PARTY_INFO = {
+  CPN_UML: { color: "#ef4444", nameEn: "CPN-UML", nameNe: "एमाले" },
+  NC:      { color: "#3b82f6", nameEn: "Nepali Congress", nameNe: "कांग्रेस" },
+  CPN_MC:  { color: "#f97316", nameEn: "CPN (Maoist Centre)", nameNe: "माओवादी" },
+  RSP:     { color: "#8b5cf6", nameEn: "RSP", nameNe: "रास्वपा" },
+  RPP:     { color: "#10b981", nameEn: "RPP", nameNe: "राप्रपा" },
+  LSP:     { color: "#f59e0b", nameEn: "Loktantrik Samajwadi", nameNe: "लोसपा" },
+  IND:     { color: "#94a3b8", nameEn: "Independent", nameNe: "स्वतन्त्र" },
+};
 
-interface Props {
-  data: ElectionResults;
-  onSeatClick?: (constituency: Constituency) => void;
+// Generate 165 mock seats distributed among parties
+function generateSeats() {
+  const distribution = [
+    { party: "CPN_UML", count: 78 },
+    { party: "NC",      count: 57 },
+    { party: "CPN_MC",  count: 11 },
+    { party: "RSP",     count: 7  },
+    { party: "RPP",     count: 5  },
+    { party: "LSP",     count: 4  },
+    { party: "IND",     count: 3  },
+  ];
+
+  const seats = [];
+  let seatNum = 1;
+  for (const { party, count } of distribution) {
+    for (let i = 0; i < count; i++) {
+      seats.push({
+        id: seatNum,
+        number: seatNum,
+        party,
+        color: PARTY_INFO[party].color,
+        status: Math.random() > 0.15 ? "declared" : "counting",
+        name: `Constituency ${seatNum}`,
+        margin: `+${(Math.random() * 5000 + 500).toFixed(0)}`,
+      });
+      seatNum++;
+    }
+  }
+  // Shuffle for visual mix
+  return seats.sort(() => Math.random() - 0.5).map((s, i) => ({ ...s, displayIndex: i }));
 }
 
-export default function SeatMap({ data, onSeatClick }: Props) {
-  const { language } = useContext(LanguageContext);
-  const ne = language === "ne";
-  const [hoveredSeat, setHoveredSeat] = useState<string | null>(null);
+const ALL_SEATS = generateSeats();
 
-  // Province order matching Nepal HoR layout
-  const provinceOrder = [
-    "Koshibelt", "Madhesh", "Bagmati", 
-    "Gandaki", "Lumbini", 
-    "Karnali", "Sudurpashchim"
-  ];
+// Compute semicircular arc positions (US Senate style)
+function computeArcSeats(seats, cx, cy, rows = 8) {
+  const positioned = [];
+  const total = seats.length;
 
-  // Flatten seats with proper province/district ordering
-  const seats = useMemo(() => {
-    const allSeats: {
-      id: string;
-      name: string;
-      nameShort: string;
-      color: string;
-      status: "declared" | "leading" | "counting";
-      province: string;
-      provinceIndex: number;
-      district: string;
-      districtIndex: number;
-      constituencyNumber: number;
-      votes: number;
-      margin: string;
-      party: string;
-    }[] = [];
+  // Distribute seats across arcs (inner rows fewer, outer more)
+  const rowCounts = [];
+  const minAngle = Math.PI * 0.08;
+  const maxAngle = Math.PI * 0.92;
 
-    data.provinives.forEach((province, pIndex) => {
-      province.districts.forEach((district, dIndex) => {
-        district.constituencies.forEach((constituency) => {
-          const leader = constituency.candidates.find((c) => c.isWinner) || 
-                        constituency.candidates.find((c) => c.leading) || 
-                        constituency.candidates[0];
-          
-          if (!leader) return;
+  // Approximate arc distribution
+  const basePerRow = Math.floor(total / rows);
+  let remaining = total;
+  for (let r = 0; r < rows; r++) {
+    const count = r === rows - 1 ? remaining : Math.round(basePerRow * (0.6 + r * 0.06));
+    rowCounts.push(Math.min(count, remaining));
+    remaining -= rowCounts[r];
+    if (remaining <= 0) break;
+  }
 
-          const partyInfo = PARTY_INFO[leader.party] || { color: "#9ca3af" };
-          
-          allSeats.push({
-            id: constituency.id,
-            name: ne ? constituency.nameNe : constituency.nameEn,
-            nameShort: constituency.number.toString().padStart(2, '0'),
-            color: partyInfo.color,
-            status: leader.isWinner ? "declared" : leader.leading ? "leading" : "counting",
-            province: province.nameEn,
-            provinceIndex: provinceOrder.indexOf(province.nameEn),
-            district: district.nameEn,
-            districtIndex: dIndex,
-            constituencyNumber: constituency.number,
-            votes: leader.votes || 0,
-            margin: leader.margin || "+0",
-            party: leader.party,
-          });
-        });
-      });
-    });
+  const minRadius = 110;
+  const radiusStep = 38;
 
-    // Sort: Province → District → Constituency Number
-    return allSeats.sort((a, b) => {
-      if (a.provinceIndex !== b.provinceIndex) return a.provinceIndex - b.provinceIndex;
-      if (a.districtIndex !== b.districtIndex) return a.districtIndex - b.districtIndex;
-      return a.constituencyNumber - b.constituencyNumber;
-    });
-  }, [data, ne]);
+  let seatIndex = 0;
+  for (let r = 0; r < rowCounts.length; r++) {
+    const count = rowCounts[r];
+    const radius = minRadius + r * radiusStep;
+    for (let s = 0; s < count && seatIndex < total; s++) {
+      const angle = minAngle + (s / (count - 1 || 1)) * (maxAngle - minAngle);
+      const x = cx + radius * Math.cos(Math.PI - angle);
+      const y = cy - radius * Math.sin(angle);
+      positioned.push({ ...seats[seatIndex], x, y, row: r });
+      seatIndex++;
+    }
+  }
+  return positioned;
+}
 
-  // Rectangular grid layout: 14 rows × 12 cols = 168 FPTP seats
-  const ROWS = 14;
-  const COLS = 12;
-  const containerWidth = 680;
-  const containerHeight = 520;
-  const seatSize = 32;
-  const seatSpacing = 42;
+export default function SeatMap() {
+  const [hovered, setHovered] = useState(null);
+  const [filter, setFilter] = useState("ALL");
 
-  // Province labels (rows 0-2: Koshi/Madhesh, 3-5: Bagmati, etc.)
-  const provinceLabels = [
-    { row: 0, name: "Koshibelt", seats: 28 },
-    { row: 3, name: "Madhesh", seats: 32 }, 
-    { row: 5, name: "Bagmati", seats: 37 },
-    { row: 8, name: "Gandaki", seats: 18 },
-    { row: 10, name: "Lumbini", seats: 26 },
-    { row: 12, name: "Karnali", seats: 12 },
-    // Sudurpashchim fills remaining
-  ];
+  const W = 900, H = 520;
+  const cx = W / 2, cy = H - 30;
 
-  const getSeatPosition = (index: number) => {
-    const row = Math.floor(index / COLS);
-    const col = index % COLS;
-    return {
-      x: 50 + col * seatSpacing,
-      y: 50 + row * seatSpacing,
-      row,
-      col
-    };
-  };
+  const positionedSeats = useMemo(() => computeArcSeats(ALL_SEATS, cx, cy, 9), []);
+
+  const filtered = filter === "ALL"
+    ? positionedSeats
+    : positionedSeats.map(s => ({ ...s, dimmed: s.party !== filter }));
+
+  const declared = ALL_SEATS.filter(s => s.status === "declared").length;
+
+  const hoveredSeat = hovered ? positionedSeats.find(s => s.id === hovered) : null;
 
   return (
-    <div className="my-8 p-8 bg-gradient-to-br from-slate-50/80 to-blue-50/80 dark:from-slate-900/30 dark:to-slate-800/30 rounded-3xl border border-slate-200/50 shadow-2xl">
-      
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h3 className="text-3xl font-black bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent tracking-tight">
-            {ne ? "प्रतिनिधिसभा सीट वितरण" : "House of Representatives"}
-          </h3>
-          <p className="text-slate-500 mt-1 font-medium">{ne ? "१६५ फप्टिपी सीटहरू" : "165 FPTP Seats"}</p>
+    <div style={{
+      fontFamily: "'Georgia', 'Times New Roman', serif",
+      background: "linear-gradient(160deg, #0f1923 0%, #1a2a3a 50%, #0f1923 100%)",
+      minHeight: "100vh",
+      padding: "32px 24px",
+      color: "#e8dcc8",
+    }}>
+
+      {/* Title */}
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <div style={{
+          fontSize: 11, letterSpacing: 6, color: "#8a9bb0", textTransform: "uppercase",
+          marginBottom: 8, fontFamily: "'Georgia', serif"
+        }}>
+          Federal Parliament of Nepal
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-            {seats.filter(s => s.status === "declared").length}
-          </div>
-          <div className="text-xs text-slate-500 uppercase tracking-wider">{ne ? "घोषित" : "Declared"}</div>
+        <h1 style={{
+          fontSize: 28, fontWeight: 700, margin: 0,
+          color: "#f0e6d3",
+          letterSpacing: 1,
+        }}>
+          House of Representatives — Seat Map
+        </h1>
+        <div style={{ fontSize: 13, color: "#6b7d8e", marginTop: 6, letterSpacing: 2 }}>
+          165 FPTP CONSTITUENCIES · 2079 B.S.
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 mb-8 pb-4 border-b border-slate-200/50 dark:border-slate-700/50">
-        {Object.entries(PARTY_INFO).map(([party, info]) => (
-          <div key={party} className="flex items-center gap-2.5 min-w-[80px]">
-            <div className="w-5 h-5 rounded-lg shadow-md ring-2 ring-white/50" 
-                 style={{ backgroundColor: info.color }} />
-            <span className="font-medium text-sm">{ne ? info.nameNe : info.nameEn}</span>
-            <span className="text-xs text-slate-400 font-mono">
-              {seats.filter(s => s.color === info.color).length}
-            </span>
+      {/* Stats bar */}
+      <div style={{
+        display: "flex", justifyContent: "center", gap: 32, marginBottom: 20,
+        flexWrap: "wrap",
+      }}>
+        {[
+          { label: "Total Seats", value: 165, color: "#e8dcc8" },
+          { label: "Declared", value: declared, color: "#4ade80" },
+          { label: "Counting", value: 165 - declared, color: "#fb923c" },
+          { label: "Majority", value: 83, color: "#60a5fa" },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
+            <div style={{ fontSize: 10, color: "#6b7d8e", letterSpacing: 2, textTransform: "uppercase", marginTop: 3 }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Seat Grid */}
-      <div className="relative mx-auto overflow-hidden rounded-2xl shadow-xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border border-white/30" 
-           style={{ width: containerWidth, height: containerHeight }}>
-        
-        {/* Province Labels */}
-        {provinceLabels.map(({ row, name, seats: seatCount }) => (
-          <div key={name} 
-               className="absolute text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200 px-3 py-1 bg-white/80 dark:bg-slate-800/80 rounded-full shadow-md border"
-               style={{ 
-                 top: `${50 + row * seatSpacing - 8}px`, 
-                 left: '20px',
-                 backgroundColor: provinceOrder.indexOf(name) % 2 === 0 ? '#f8fafc' : '#e2e8f0'
-               }}>
-            {ne ? name.replace('belt', 'ाञ्चल') : name} ({seatCount})
-          </div>
-        ))}
-
-        {/* Seat Numbers (row headers) */}
-        {Array.from({ length: ROWS }, (_, row) => (
-          <div key={row} 
-               className="absolute right-4 text-xs font-mono text-slate-500 bg-white/70 dark:bg-slate-800/70 px-2 py-1 rounded shadow-sm"
-               style={{ top: `${55 + row * seatSpacing}px` }}>
-            {row + 1}
-          </div>
-        ))}
-
-        {/* Seats */}
-        {seats.slice(0, ROWS * COLS).map((seat, idx) => {
-          const pos = getSeatPosition(idx);
-          const isHovered = hoveredSeat === seat.id;
-          
+      {/* Legend / filter */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setFilter("ALL")}
+          style={{
+            padding: "4px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+            border: filter === "ALL" ? "1.5px solid #e8dcc8" : "1.5px solid #3a4a5a",
+            background: filter === "ALL" ? "#e8dcc8" : "transparent",
+            color: filter === "ALL" ? "#0f1923" : "#8a9bb0",
+            fontFamily: "Georgia, serif", letterSpacing: 1,
+          }}>
+          All Parties
+        </button>
+        {Object.entries(PARTY_INFO).map(([key, info]) => {
+          const count = ALL_SEATS.filter(s => s.party === key).length;
           return (
-            <div
-              key={seat.id}
-              className="absolute group cursor-pointer"
+            <button
+              key={key}
+              onClick={() => setFilter(filter === key ? "ALL" : key)}
               style={{
-                left: `${pos.x - seatSize/2}px`,
-                top: `${pos.y - seatSize/2}px`,
-                width: seatSize,
-                height: seatSize,
-              }}
-              onMouseEnter={() => setHoveredSeat(seat.id)}
-              onMouseLeave={() => setHoveredSeat(null)}
-              onClick={() => onSeatClick?.(data.provinces.flatMap(p => 
-                p.districts.flatMap(d => d.constituencies)
-              ).find(c => c.id === seat.id)!)}
-            >
-              <div 
-                className="w-full h-full rounded-lg shadow-md hover:shadow-xl transition-all duration-200 flex items-center justify-center border-2 group-hover:border-white/50 relative overflow-hidden"
-                style={{
-                  backgroundColor: isHovered ? '#fbbf24' : seat.color,
-                  boxShadow: isHovered 
-                    ? "0 10px 30px rgba(251, 191, 36, 0.4), 0 0 0 3px rgba(255,255,255,0.9)" 
-                    : "0 4px 16px rgba(0,0,0,0.12)",
-                  transform: isHovered ? "scale(1.15)" : "scale(1)",
-                }}
-              >
-                {/* Status indicator */}
-                {seat.status === "declared" && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full shadow-sm" />
-                )}
-                
-                {/* Seat number */}
-                <span className="font-bold text-xs leading-none drop-shadow-sm">
-                  {seat.nameShort}
-                </span>
-                
-                {/* Hover tooltip */}
-                {isHovered && (
-                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-slate-900/95 backdrop-blur-sm text-white text-xs px-3 py-2 rounded-xl shadow-2xl border border-white/20 min-w-[140px] whitespace-nowrap">
-                    <div className="font-bold">{seat.name}</div>
-                    <div className="text-emerald-300">{seat.margin}</div>
-                    <div className="text-slate-300 text-[10px] mt-0.5">{seat.party}</div>
-                  </div>
-                )}
-              </div>
-            </div>
+                padding: "4px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+                border: `1.5px solid ${filter === key ? info.color : "#3a4a5a"}`,
+                background: filter === key ? info.color : "transparent",
+                color: filter === key ? "#fff" : "#8a9bb0",
+                fontFamily: "Georgia, serif", letterSpacing: 0.5,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+              <span style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: info.color, display: "inline-block", flexShrink: 0,
+              }} />
+              {info.nameEn} ({count})
+            </button>
           );
         })}
-
-        {/* Grid lines */}
-        {Array.from({ length: ROWS + 1 }, (_, i) => (
-          <div key={`h-${i}`} 
-               className="absolute w-full h-px bg-gradient-to-r from-transparent via-slate-200/50 to-transparent"
-               style={{ top: `${52 + i * seatSpacing}px` }} />
-        ))}
-        {Array.from({ length: COLS + 1 }, (_, i) => (
-          <div key={`v-${i}`} 
-               className="absolute h-full w-px bg-gradient-to-b from-transparent via-slate-200/50 to-transparent"
-               style={{ left: `${52 + i * seatSpacing}px` }} />
-        ))}
-
-        {/* Status badges */}
-        <div className="absolute top-4 left-4 text-xs font-mono bg-emerald-500/90 text-white px-3 py-1.5 rounded-full shadow-lg border-2 border-white/50">
-          ● {seats.filter(s => s.status === "declared").length} Declared
-        </div>
-        <div className="absolute top-4 right-4 text-xs font-mono bg-blue-500/90 text-white px-3 py-1.5 rounded-full shadow-lg border-2 border-white/50">
-          {Math.round(seats.filter(s => s.party === "RSP").length / seats.length * 100)}% RSP
-        </div>
-        <div className="absolute bottom-4 left-4 text-xs font-mono bg-slate-500/90 text-white px-3 py-1.5 rounded-full shadow-lg">
-          १६५ FPTP Seats • Live
-        </div>
       </div>
 
-      {/* Stats Footer */}
-      <div className="grid grid-cols-5 gap-6 mt-8 pt-6 border-t-2 border-slate-200/30 dark:border-slate-700">
-        <div className="text-center">
-          <div className="text-3xl font-black text-emerald-600">{seats.filter(s => s.status === "declared").length}</div>
-          <div className="text-sm font-medium text-slate-500 mt-1 uppercase tracking-wide">Declared</div>
-        </div>
-        <div className="text-center">
-          <div className="text-3xl font-black text-blue-600">{seats.filter(s => s.party === "RSP").length}</div>
-          <div className="text-sm font-medium text-slate-500 mt-1 uppercase tracking-wide">रास्वपा</div>
-        </div>
-        <div className="text-center">
-          <div className="text-3xl font-black text-orange-600">{seats.length}</div>
-          <div className="text-sm font-medium text-slate-500 mt-1 uppercase tracking-wide">Total</div>
-        </div>
-        <div className="text-center border-r pr-3">
-          <div className="text-3xl font-black text-purple-600">138</div>
-          <div className="text-sm font-medium text-slate-500 mt-1 uppercase tracking-wide">Majority</div>
-        </div>
-        <div className="text-center">
-          <div className="text-3xl font-black text-indigo-600">
-            {Math.ceil(seats.length * 0.6)}
+      {/* Main SVG Map */}
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <svg width={W} height={H} style={{ display: "block", overflow: "visible" }}>
+          {/* Subtle arc guidelines */}
+          {[110, 148, 186, 224, 262, 300, 338, 376, 414].map((r, i) => (
+            <path
+              key={i}
+              d={`M ${cx - r * Math.cos(Math.PI * 0.08)} ${cy - r * Math.sin(Math.PI * 0.08)} 
+                  A ${r} ${r} 0 0 1 ${cx + r * Math.cos(Math.PI * 0.08)} ${cy - r * Math.sin(Math.PI * 0.08)}`}
+              fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={1}
+            />
+          ))}
+
+          {/* Podium / dais at bottom center */}
+          <rect x={cx - 70} y={cy - 10} width={140} height={22} rx={6}
+            fill="#1e2d3d" stroke="#3a5068" strokeWidth={1.5} />
+          <text x={cx} y={cy + 6} textAnchor="middle"
+            fill="#6b8aaa" fontSize={10} fontFamily="Georgia, serif" letterSpacing={1}>
+            SPEAKER
+          </text>
+
+          {/* Majority line */}
+          <line x1={cx} y1={cy - 80} x2={cx} y2={cy - 430}
+            stroke="#60a5fa" strokeWidth={1} strokeDasharray="4,6" opacity={0.3} />
+          <text x={cx + 5} y={cy - 420} fill="#60a5fa" fontSize={9} opacity={0.5} fontFamily="Georgia, serif">
+            Majority line
+          </text>
+
+          {/* Seats */}
+          {filtered.map((seat) => {
+            const isHovered = hovered === seat.id;
+            const isDimmed = seat.dimmed;
+            const r = isHovered ? 10 : 8;
+
+            return (
+              <g key={seat.id}
+                onMouseEnter={() => setHovered(seat.id)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ cursor: "pointer" }}>
+                {/* Glow */}
+                {isHovered && (
+                  <circle cx={seat.x} cy={seat.y} r={15}
+                    fill={seat.color} opacity={0.25} />
+                )}
+
+                {/* Seat circle */}
+                <circle
+                  cx={seat.x} cy={seat.y} r={r}
+                  fill={isDimmed ? "#1e2a36" : seat.color}
+                  stroke={isDimmed ? "#2a3a4a" : isHovered ? "#fff" : "rgba(255,255,255,0.2)"}
+                  strokeWidth={isHovered ? 2 : 0.8}
+                  opacity={isDimmed ? 0.25 : 1}
+                  style={{ transition: "all 0.15s ease" }}
+                />
+
+                {/* Counting indicator */}
+                {seat.status === "counting" && !isDimmed && (
+                  <circle cx={seat.x + 6} cy={seat.y - 6} r={3}
+                    fill="#fb923c" stroke="#0f1923" strokeWidth={1} />
+                )}
+
+                {/* Seat number (only at larger sizes or hovered) */}
+                {isHovered && (
+                  <text x={seat.x} y={seat.y + 0.5} textAnchor="middle" dominantBaseline="middle"
+                    fill="#fff" fontSize={7} fontWeight="bold" fontFamily="Georgia, serif">
+                    {seat.number}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          {/* Province arc labels */}
+          {[
+            { label: "Koshi", angle: 0.15 },
+            { label: "Madhesh", angle: 0.30 },
+            { label: "Bagmati", angle: 0.50 },
+            { label: "Gandaki", angle: 0.65 },
+            { label: "Lumbini", angle: 0.78 },
+            { label: "Karnali", angle: 0.88 },
+            { label: "Sudurpashchim", angle: 0.95 },
+          ].map(({ label, angle }) => {
+            const R = 460;
+            const a = Math.PI * (0.08 + angle * 0.84);
+            const x = cx + R * Math.cos(Math.PI - a);
+            const y = cy - R * Math.sin(a);
+            return (
+              <text key={label} x={x} y={y} textAnchor="middle"
+                fill="#3a5068" fontSize={9} fontFamily="Georgia, serif"
+                letterSpacing={0.5}>
+                {label}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Tooltip card */}
+      {hoveredSeat && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: "#1a2a3a", border: "1px solid #3a5068",
+          borderRadius: 12, padding: "12px 24px",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          display: "flex", alignItems: "center", gap: 16,
+          zIndex: 100, pointerEvents: "none",
+        }}>
+          <div style={{
+            width: 14, height: 14, borderRadius: "50%",
+            background: hoveredSeat.color, flexShrink: 0,
+          }} />
+          <div>
+            <div style={{ fontWeight: 700, color: "#e8dcc8", fontSize: 14 }}>
+              {hoveredSeat.name}
+            </div>
+            <div style={{ fontSize: 12, color: "#8a9bb0", marginTop: 2 }}>
+              {PARTY_INFO[hoveredSeat.party]?.nameEn} · {hoveredSeat.status === "declared" ? "✓ Declared" : "⏳ Counting"} · Margin {hoveredSeat.margin}
+            </div>
           </div>
-          <div className="text-sm font-medium text-slate-500 mt-1 uppercase tracking-wide">2/3 Majority</div>
         </div>
+      )}
+
+      {/* Bottom legend */}
+      <div style={{
+        display: "flex", justifyContent: "center", gap: 24, marginTop: 16,
+        flexWrap: "wrap", fontSize: 11, color: "#6b7d8e",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fb923c" }} />
+          Counting
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80" }} />
+          Declared
+        </div>
+        <div>Hover a seat for details · Click party to filter</div>
       </div>
     </div>
   );
