@@ -23,12 +23,13 @@ export default function NationalSummary({ data }: Props) {
         const seatAwarded = con.status === "declared";
         if (con.candidates[0]) {
           const first = con.candidates[0];
-          const partyName =
-            first.party === "other"
-              ? ne
-                ? first.name
-                : first.nameEn
-              : PARTY_INFO[first.party]?.nameEn ?? first.party;
+          let partyName: string;
+          if (first.party === 'other') {
+            // use raw party name from ECN if available, otherwise fallback to candidate name
+            partyName = first.partyLong || (ne ? first.name : first.nameEn) || 'Others';
+          } else {
+            partyName = PARTY_INFO[first.party]?.nameEn ?? first.party;
+          }
 
           if (!totalsMap[partyName]) totalsMap[partyName] = { seats: 0, votes: 0, percentage: 0 };
           totalsMap[partyName].votes += first.votes;
@@ -43,9 +44,7 @@ export default function NationalSummary({ data }: Props) {
         con.candidates.slice(1).forEach((cand) => {
           const partyName =
             cand.party === "other"
-              ? ne
-                ? cand.name
-                : cand.nameEn
+              ? cand.partyLong || (ne ? cand.name : cand.nameEn) || 'Others'
               : PARTY_INFO[cand.party]?.nameEn ?? cand.party;
           if (!totalsMap[partyName]) totalsMap[partyName] = { seats: 0, votes: 0, percentage: 0 };
           totalsMap[partyName].votes += cand.votes;
@@ -60,9 +59,13 @@ export default function NationalSummary({ data }: Props) {
     if (totalVotes > 0) t.percentage = Math.round((t.votes / totalVotes) * 1000) / 10;
   });
 
-  const sorted = Object.entries(totalsMap)
+  let sorted = Object.entries(totalsMap)
     .filter(([, v]) => v.seats > 0 || v.votes > 0)
     .sort(([, a], [, b]) => b.seats - a.seats || b.votes - a.votes);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('national sorted keys', sorted.map(([k])=>k));
+    console.log('leading map', leadingMap);
+  }
 
 
   const maxSeats = sorted[0]?.[1].seats ?? 1;

@@ -193,6 +193,7 @@ function parseRows(rows: EcnRow[]): ElectionResults {
             name:       r.CandidateName ?? "",
             nameEn:     r.CandidateName ?? "",   // ECN only provides Nepali; same value used for both
             party:      mapParty(r.PoliticalPartyName ?? ""),
+            partyLong:  r.PoliticalPartyName ?? "",
             votes:      r.TotalVoteReceived ?? 0,
             percentage: totalVotes > 0 ? Math.round(((r.TotalVoteReceived ?? 0) / totalVotes) * 1000) / 10 : 0,
             isLeading:  isFirst,

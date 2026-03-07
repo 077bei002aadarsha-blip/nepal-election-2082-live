@@ -30,6 +30,7 @@ export interface Candidate {
   name: string;
   nameEn: string;
   party: PartyCode;
+  partyLong?: string; // raw ECN party name for ‘other’ parties
   votes: number;
   percentage: number;
   status: CandidateStatus;
