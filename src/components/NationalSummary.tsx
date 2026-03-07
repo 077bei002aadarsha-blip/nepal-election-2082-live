@@ -35,7 +35,8 @@ export default function NationalSummary({ data }: Props) {
           totalsMap[partyName].votes += first.votes;
           if (seatAwarded) totalsMap[partyName].seats += 1;
 
-          if (first.isLeading) {
+          if (first.isLeading && con.status !== "declared") {
+            // only count as leading if the seat hasn't been declared yet
             leadingMap[partyName] = (leadingMap[partyName] ?? 0) + 1;
           }
         }
@@ -98,7 +99,7 @@ export default function NationalSummary({ data }: Props) {
       <div className="px-5 pt-4 pb-2">
         <div className="flex h-6 rounded-full overflow-hidden border border-slate-100 dark:border-slate-700 relative">
           {sorted.map(([pc, v]) => {
-            const pInfo = PARTY_INFO[pc];
+            const pInfo = PARTY_INFO[pc as PartyCode];
             const widthPct = (v.seats / data.totalSeats) * 100;
             if (widthPct < 0.3) return null;
             return (
@@ -136,7 +137,7 @@ export default function NationalSummary({ data }: Props) {
           </thead>
           <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
             {sorted.map(([pc, v]) => {
-              const pInfo = PARTY_INFO[pc];
+              const pInfo = PARTY_INFO[pc as PartyCode];
               return (
                 <tr key={pc} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                   <td className="px-5 py-2.5">
