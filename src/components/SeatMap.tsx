@@ -1,325 +1,281 @@
-import { useState, useMemo } from "react";
+"use client";
 
-// Party colors & info
-const PARTY_INFO = {
-  CPN_UML: { color: "#ef4444", nameEn: "CPN-UML", nameNe: "एमाले" },
-  NC:      { color: "#3b82f6", nameEn: "Nepali Congress", nameNe: "कांग्रेस" },
-  CPN_MC:  { color: "#f97316", nameEn: "CPN (Maoist Centre)", nameNe: "माओवादी" },
-  RSP:     { color: "#8b5cf6", nameEn: "RSP", nameNe: "रास्वपा" },
-  RPP:     { color: "#10b981", nameEn: "RPP", nameNe: "राप्रपा" },
-  LSP:     { color: "#f59e0b", nameEn: "Loktantrik Samajwadi", nameNe: "लोसपा" },
-  IND:     { color: "#94a3b8", nameEn: "Independent", nameNe: "स्वतन्त्र" },
-};
+import { useContext, useMemo, useState } from "react";
+import { LanguageContext } from "@/app/providers";
+import type { ElectionResults, Constituency, PartyCode } from "@/lib/types";
+import { PARTY_INFO } from "@/lib/mock-data";
 
-// Generate 165 mock seats distributed among parties
-function generateSeats() {
-  const distribution = [
-    { party: "CPN_UML", count: 78 },
-    { party: "NC",      count: 57 },
-    { party: "CPN_MC",  count: 11 },
-    { party: "RSP",     count: 7  },
-    { party: "RPP",     count: 5  },
-    { party: "LSP",     count: 4  },
-    { party: "IND",     count: 3  },
-  ];
-
-  const seats = [];
-  let seatNum = 1;
-  for (const { party, count } of distribution) {
-    for (let i = 0; i < count; i++) {
-      seats.push({
-        id: seatNum,
-        number: seatNum,
-        party,
-        color: PARTY_INFO[party].color,
-        status: Math.random() > 0.15 ? "declared" : "counting",
-        name: `Constituency ${seatNum}`,
-        margin: `+${(Math.random() * 5000 + 500).toFixed(0)}`,
-      });
-      seatNum++;
-    }
-  }
-  // Shuffle for visual mix
-  return seats.sort(() => Math.random() - 0.5).map((s, i) => ({ ...s, displayIndex: i }));
+interface Props {
+  data: ElectionResults;
+  onSeatClick?: (constituency: Constituency) => void;
 }
 
-const ALL_SEATS = generateSeats();
-
-// Compute semicircular arc positions (US Senate style)
-function computeArcSeats(seats, cx, cy, rows = 8) {
-  const positioned = [];
-  const total = seats.length;
-
-  // Distribute seats across arcs (inner rows fewer, outer more)
-  const rowCounts = [];
+function computeArcPositions(total: number, cx: number, cy: number, numRows = 9) {
   const minAngle = Math.PI * 0.08;
   const maxAngle = Math.PI * 0.92;
+  const minRadius = 100;
+  const radiusStep = 36;
 
-  // Approximate arc distribution
-  const basePerRow = Math.floor(total / rows);
+  const rowCounts: number[] = [];
   let remaining = total;
-  for (let r = 0; r < rows; r++) {
-    const count = r === rows - 1 ? remaining : Math.round(basePerRow * (0.6 + r * 0.06));
-    rowCounts.push(Math.min(count, remaining));
-    remaining -= rowCounts[r];
+  for (let r = 0; r < numRows; r++) {
+    const base = Math.floor(total / numRows);
+    const count =
+      r === numRows - 1
+        ? remaining
+        : Math.min(Math.round(base * (0.6 + r * 0.07)), remaining);
+    rowCounts.push(count);
+    remaining -= count;
     if (remaining <= 0) break;
   }
 
-  const minRadius = 110;
-  const radiusStep = 38;
-
-  let seatIndex = 0;
+  const positions: { x: number; y: number; row: number }[] = [];
   for (let r = 0; r < rowCounts.length; r++) {
     const count = rowCounts[r];
     const radius = minRadius + r * radiusStep;
-    for (let s = 0; s < count && seatIndex < total; s++) {
-      const angle = minAngle + (s / (count - 1 || 1)) * (maxAngle - minAngle);
-      const x = cx + radius * Math.cos(Math.PI - angle);
-      const y = cy - radius * Math.sin(angle);
-      positioned.push({ ...seats[seatIndex], x, y, row: r });
-      seatIndex++;
+    for (let s = 0; s < count; s++) {
+      const angle =
+        count === 1
+          ? (minAngle + maxAngle) / 2
+          : minAngle + (s / (count - 1)) * (maxAngle - minAngle);
+      positions.push({
+        x: cx + radius * Math.cos(Math.PI - angle),
+        y: cy - radius * Math.sin(angle),
+        row: r,
+      });
     }
   }
-  return positioned;
+  return positions;
 }
 
-export default function SeatMap() {
-  const [hovered, setHovered] = useState(null);
-  const [filter, setFilter] = useState("ALL");
+export default function SeatMap({ data, onSeatClick }: Props) {
+  const { language } = useContext(LanguageContext);
+  const ne = language === "ne";
+  const [hoveredSeat, setHoveredSeat] = useState<string | null>(null);
+  const [filterParty, setFilterParty] = useState<string | null>(null);
 
-  const W = 900, H = 520;
-  const cx = W / 2, cy = H - 30;
+  const W = 860, H = 500;
+  const cx = W / 2, cy = H - 20;
 
-  const positionedSeats = useMemo(() => computeArcSeats(ALL_SEATS, cx, cy, 9), []);
+  const seats = useMemo(() => {
+    const allSeats: {
+      id: string;
+      number: number;
+      name: string;
+      color: string;
+      status: "declared" | "leading" | "counting";
+      party: string;
+      margin: string;
+      province: string;
+    }[] = [];
 
-  const filtered = filter === "ALL"
-    ? positionedSeats
-    : positionedSeats.map(s => ({ ...s, dimmed: s.party !== filter }));
+    data.provinces.forEach((province) => {
+      province.districts.forEach((district) => {
+        district.constituencies.forEach((constituency) => {
+          const leader =
+            constituency.candidates.find((c) => c.isWinner) ||
+            constituency.candidates.find((c) => c.isLeading) ||
+            constituency.candidates[0];
+          if (!leader) return;
+          const partyInfo = PARTY_INFO[leader.party] || { color: "#9ca3af" };
+          allSeats.push({
+            id: constituency.id,
+            number: constituency.no,
+            name: ne ? constituency.nameNe : constituency.nameEn,
+            color: partyInfo.color,
+            status: leader.isWinner ? "declared" : leader.isLeading ? "leading" : "counting",
+            party: leader.party,
+            margin: leader.leadBy != null ? `+${leader.leadBy}` : "+0",
+            province: ne ? province.nameNe : province.nameEn,
+          });
+        });
+      });
+    });
+    return allSeats;
+  }, [data, ne]);
 
-  const declared = ALL_SEATS.filter(s => s.status === "declared").length;
+  const positions = useMemo(() => computeArcPositions(seats.length, cx, cy, 9), [seats.length, cx, cy]);
 
-  const hoveredSeat = hovered ? positionedSeats.find(s => s.id === hovered) : null;
+  const declared = seats.filter((s) => s.status === "declared").length;
+  const leading  = seats.filter((s) => s.status === "leading").length;
+
+  const partyCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    seats.forEach((s) => { counts[s.party] = (counts[s.party] || 0) + 1; });
+    return counts;
+  }, [seats]);
+
+  const hovered = hoveredSeat ? seats.find((s) => s.id === hoveredSeat) : null;
 
   return (
-    <div style={{
-      fontFamily: "'Georgia', 'Times New Roman', serif",
-      background: "linear-gradient(160deg, #0f1923 0%, #1a2a3a 50%, #0f1923 100%)",
-      minHeight: "100vh",
-      padding: "32px 24px",
-      color: "#e8dcc8",
-    }}>
+    <div className="my-6 rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl"
+      style={{ background: "linear-gradient(160deg, #0d1b2a 0%, #1a2d42 60%, #0d1b2a 100%)" }}>
 
-      {/* Title */}
-      <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <div style={{
-          fontSize: 11, letterSpacing: 6, color: "#8a9bb0", textTransform: "uppercase",
-          marginBottom: 8, fontFamily: "'Georgia', serif"
-        }}>
-          Federal Parliament of Nepal
-        </div>
-        <h1 style={{
-          fontSize: 28, fontWeight: 700, margin: 0,
-          color: "#f0e6d3",
-          letterSpacing: 1,
-        }}>
-          House of Representatives — Seat Map
-        </h1>
-        <div style={{ fontSize: 13, color: "#6b7d8e", marginTop: 6, letterSpacing: 2 }}>
-          165 FPTP CONSTITUENCIES · 2079 B.S.
-        </div>
-      </div>
-
-      {/* Stats bar */}
-      <div style={{
-        display: "flex", justifyContent: "center", gap: 32, marginBottom: 20,
-        flexWrap: "wrap",
-      }}>
-        {[
-          { label: "Total Seats", value: 165, color: "#e8dcc8" },
-          { label: "Declared", value: declared, color: "#4ade80" },
-          { label: "Counting", value: 165 - declared, color: "#fb923c" },
-          { label: "Majority", value: 83, color: "#60a5fa" },
-        ].map(({ label, value, color }) => (
-          <div key={label} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-            <div style={{ fontSize: 10, color: "#6b7d8e", letterSpacing: 2, textTransform: "uppercase", marginTop: 3 }}>{label}</div>
+      {/* Header */}
+      <div className="px-8 pt-6 pb-4 border-b border-slate-700/40">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <p className="text-xs tracking-widest text-slate-500 uppercase mb-1" style={{ fontFamily: "Georgia, serif" }}>
+              Federal Parliament of Nepal
+            </p>
+            <h2 className="text-2xl font-bold text-slate-100" style={{ fontFamily: "Georgia, serif" }}>
+              {ne ? "प्रतिनिधिसभा सिट नक्शा" : "House of Representatives — Seat Map"}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 tracking-widest uppercase">
+              {seats.length} FPTP Constituencies · Semicircular Layout
+            </p>
           </div>
-        ))}
+          <div className="flex gap-6">
+            {[
+              { label: ne ? "घोषित" : "Declared",  value: declared,                        color: "#4ade80" },
+              { label: ne ? "अग्रणी" : "Leading",   value: leading,                         color: "#60a5fa" },
+              { label: ne ? "जम्मा" : "Total",      value: seats.length,                    color: "#e2e8f0" },
+              { label: ne ? "बहुमत" : "Majority",   value: Math.ceil(seats.length / 2) + 1, color: "#facc15" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="text-center">
+                <div className="text-2xl font-black" style={{ color }}>{value}</div>
+                <div className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Party filter */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button onClick={() => setFilterParty(null)}
+            className="px-3 py-1 rounded-full text-xs transition-all"
+            style={{
+              border: filterParty === null ? "1.5px solid #e2e8f0" : "1.5px solid #334155",
+              background: filterParty === null ? "#e2e8f0" : "transparent",
+              color: filterParty === null ? "#0d1b2a" : "#64748b",
+              fontFamily: "Georgia, serif",
+            }}>
+            {ne ? "सबै दल" : "All Parties"}
+          </button>
+          {Object.entries(PARTY_INFO).map(([key, info]) => {
+            const count = partyCounts[key] || 0;
+            if (!count) return null;
+            const active = filterParty === key;
+            return (
+              <button key={key} onClick={() => setFilterParty(active ? null : key)}
+                className="px-3 py-1 rounded-full text-xs flex items-center gap-1.5 transition-all"
+                style={{
+                  border: `1.5px solid ${active ? info.color : "#334155"}`,
+                  background: active ? info.color : "transparent",
+                  color: active ? "#fff" : "#94a3b8",
+                  fontFamily: "Georgia, serif",
+                }}>
+                <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: info.color }} />
+                {ne ? info.nameNe : info.nameEn} ({count})
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Legend / filter */}
-      <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        <button
-          onClick={() => setFilter("ALL")}
-          style={{
-            padding: "4px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer",
-            border: filter === "ALL" ? "1.5px solid #e8dcc8" : "1.5px solid #3a4a5a",
-            background: filter === "ALL" ? "#e8dcc8" : "transparent",
-            color: filter === "ALL" ? "#0f1923" : "#8a9bb0",
-            fontFamily: "Georgia, serif", letterSpacing: 1,
-          }}>
-          All Parties
-        </button>
-        {Object.entries(PARTY_INFO).map(([key, info]) => {
-          const count = ALL_SEATS.filter(s => s.party === key).length;
-          return (
-            <button
-              key={key}
-              onClick={() => setFilter(filter === key ? "ALL" : key)}
-              style={{
-                padding: "4px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer",
-                border: `1.5px solid ${filter === key ? info.color : "#3a4a5a"}`,
-                background: filter === key ? info.color : "transparent",
-                color: filter === key ? "#fff" : "#8a9bb0",
-                fontFamily: "Georgia, serif", letterSpacing: 0.5,
-                display: "flex", alignItems: "center", gap: 6,
-              }}>
-              <span style={{
-                width: 10, height: 10, borderRadius: "50%",
-                background: info.color, display: "inline-block", flexShrink: 0,
-              }} />
-              {info.nameEn} ({count})
-            </button>
-          );
-        })}
-      </div>
+      {/* SVG map */}
+      <div className="flex justify-center px-4 py-4 relative">
+        <svg width={W} height={H} style={{ overflow: "visible" }}>
+          {/* Arc guidelines */}
+          {Array.from({ length: 9 }, (_, i) => {
+            const r = 100 + i * 36;
+            const a1 = Math.PI * 0.08, a2 = Math.PI * 0.92;
+            return (
+              <path key={i}
+                d={`M ${cx + r * Math.cos(Math.PI - a1)} ${cy - r * Math.sin(a1)} A ${r} ${r} 0 0 1 ${cx + r * Math.cos(Math.PI - a2)} ${cy - r * Math.sin(a2)}`}
+                fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+            );
+          })}
 
-      {/* Main SVG Map */}
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <svg width={W} height={H} style={{ display: "block", overflow: "visible" }}>
-          {/* Subtle arc guidelines */}
-          {[110, 148, 186, 224, 262, 300, 338, 376, 414].map((r, i) => (
-            <path
-              key={i}
-              d={`M ${cx - r * Math.cos(Math.PI * 0.08)} ${cy - r * Math.sin(Math.PI * 0.08)} 
-                  A ${r} ${r} 0 0 1 ${cx + r * Math.cos(Math.PI * 0.08)} ${cy - r * Math.sin(Math.PI * 0.08)}`}
-              fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={1}
-            />
-          ))}
+          {/* Majority line */}
+          <line x1={cx} y1={cy - 70} x2={cx} y2={cy - 390}
+            stroke="#facc15" strokeWidth={1} strokeDasharray="5,7" opacity={0.2} />
 
-          {/* Podium / dais at bottom center */}
-          <rect x={cx - 70} y={cy - 10} width={140} height={22} rx={6}
-            fill="#1e2d3d" stroke="#3a5068" strokeWidth={1.5} />
-          <text x={cx} y={cy + 6} textAnchor="middle"
-            fill="#6b8aaa" fontSize={10} fontFamily="Georgia, serif" letterSpacing={1}>
+          {/* Speaker podium */}
+          <rect x={cx - 52} y={cy - 14} width={104} height={20} rx={5}
+            fill="#162032" stroke="#2d4a66" strokeWidth={1.5} />
+          <text x={cx} y={cy - 0.5} textAnchor="middle" dominantBaseline="middle"
+            fill="#4a6a88" fontSize={9} fontFamily="Georgia, serif" letterSpacing={1.5}>
             SPEAKER
           </text>
 
-          {/* Majority line */}
-          <line x1={cx} y1={cy - 80} x2={cx} y2={cy - 430}
-            stroke="#60a5fa" strokeWidth={1} strokeDasharray="4,6" opacity={0.3} />
-          <text x={cx + 5} y={cy - 420} fill="#60a5fa" fontSize={9} opacity={0.5} fontFamily="Georgia, serif">
-            Majority line
-          </text>
-
           {/* Seats */}
-          {filtered.map((seat) => {
-            const isHovered = hovered === seat.id;
-            const isDimmed = seat.dimmed;
-            const r = isHovered ? 10 : 8;
-
+          {seats.map((seat, idx) => {
+            const pos = positions[idx];
+            if (!pos) return null;
+            const isHov = hoveredSeat === seat.id;
+            const isDimmed = filterParty !== null && seat.party !== filterParty;
             return (
               <g key={seat.id}
-                onMouseEnter={() => setHovered(seat.id)}
-                onMouseLeave={() => setHovered(null)}
+                onMouseEnter={() => setHoveredSeat(seat.id)}
+                onMouseLeave={() => setHoveredSeat(null)}
+                onClick={() => {
+                  const found = data.provinces
+                    .flatMap((p) => p.districts.flatMap((d) => d.constituencies))
+                    .find((c) => c.id === seat.id);
+                  if (found) onSeatClick?.(found);
+                }}
                 style={{ cursor: "pointer" }}>
-                {/* Glow */}
-                {isHovered && (
-                  <circle cx={seat.x} cy={seat.y} r={15}
-                    fill={seat.color} opacity={0.25} />
-                )}
-
-                {/* Seat circle */}
-                <circle
-                  cx={seat.x} cy={seat.y} r={r}
-                  fill={isDimmed ? "#1e2a36" : seat.color}
-                  stroke={isDimmed ? "#2a3a4a" : isHovered ? "#fff" : "rgba(255,255,255,0.2)"}
-                  strokeWidth={isHovered ? 2 : 0.8}
-                  opacity={isDimmed ? 0.25 : 1}
-                  style={{ transition: "all 0.15s ease" }}
-                />
-
-                {/* Counting indicator */}
+                {isHov && <circle cx={pos.x} cy={pos.y} r={16} fill={seat.color} opacity={0.2} />}
+                <circle cx={pos.x} cy={pos.y} r={isHov ? 9.5 : 7.5}
+                  fill={isDimmed ? "#1e3048" : seat.color}
+                  stroke={isDimmed ? "#263c52" : isHov ? "#ffffff" : "rgba(255,255,255,0.18)"}
+                  strokeWidth={isHov ? 2 : 0.8}
+                  opacity={isDimmed ? 0.2 : 1}
+                  style={{ transition: "all 0.12s ease" }} />
                 {seat.status === "counting" && !isDimmed && (
-                  <circle cx={seat.x + 6} cy={seat.y - 6} r={3}
-                    fill="#fb923c" stroke="#0f1923" strokeWidth={1} />
+                  <circle cx={pos.x + 5.5} cy={pos.y - 5.5} r={2.5}
+                    fill="#fb923c" stroke="#0d1b2a" strokeWidth={1} />
                 )}
-
-                {/* Seat number (only at larger sizes or hovered) */}
-                {isHovered && (
-                  <text x={seat.x} y={seat.y + 0.5} textAnchor="middle" dominantBaseline="middle"
-                    fill="#fff" fontSize={7} fontWeight="bold" fontFamily="Georgia, serif">
+                {isHov && (
+                  <text x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="middle"
+                    fill="#fff" fontSize={6.5} fontWeight="bold" fontFamily="Georgia, serif">
                     {seat.number}
                   </text>
                 )}
               </g>
             );
           })}
-
-          {/* Province arc labels */}
-          {[
-            { label: "Koshi", angle: 0.15 },
-            { label: "Madhesh", angle: 0.30 },
-            { label: "Bagmati", angle: 0.50 },
-            { label: "Gandaki", angle: 0.65 },
-            { label: "Lumbini", angle: 0.78 },
-            { label: "Karnali", angle: 0.88 },
-            { label: "Sudurpashchim", angle: 0.95 },
-          ].map(({ label, angle }) => {
-            const R = 460;
-            const a = Math.PI * (0.08 + angle * 0.84);
-            const x = cx + R * Math.cos(Math.PI - a);
-            const y = cy - R * Math.sin(a);
-            return (
-              <text key={label} x={x} y={y} textAnchor="middle"
-                fill="#3a5068" fontSize={9} fontFamily="Georgia, serif"
-                letterSpacing={0.5}>
-                {label}
-              </text>
-            );
-          })}
         </svg>
+
+        {/* Tooltip */}
+        {hovered && (() => {
+          const info = PARTY_INFO[hovered.party as PartyCode];
+          return (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none z-10"
+              style={{
+                background: "#0d1b2a", border: "1px solid #2d4a66", borderRadius: 10,
+                padding: "10px 20px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+                display: "flex", alignItems: "center", gap: 12, whiteSpace: "nowrap",
+              }}>
+              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: hovered.color }} />
+              <div>
+                <div className="text-sm font-bold text-slate-100" style={{ fontFamily: "Georgia, serif" }}>
+                  {hovered.name}
+                </div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  {info ? (ne ? info.nameNe : info.nameEn) : hovered.party}
+                  {" · "}
+                  {hovered.status === "declared" ? "✓ Declared" : hovered.status === "leading" ? "↑ Leading" : "⏳ Counting"}
+                  {" · "}{hovered.margin}{" · "}{hovered.province}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
-      {/* Tooltip card */}
-      {hoveredSeat && (
-        <div style={{
-          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          background: "#1a2a3a", border: "1px solid #3a5068",
-          borderRadius: 12, padding: "12px 24px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-          display: "flex", alignItems: "center", gap: 16,
-          zIndex: 100, pointerEvents: "none",
-        }}>
-          <div style={{
-            width: 14, height: 14, borderRadius: "50%",
-            background: hoveredSeat.color, flexShrink: 0,
-          }} />
-          <div>
-            <div style={{ fontWeight: 700, color: "#e8dcc8", fontSize: 14 }}>
-              {hoveredSeat.name}
-            </div>
-            <div style={{ fontSize: 12, color: "#8a9bb0", marginTop: 2 }}>
-              {PARTY_INFO[hoveredSeat.party]?.nameEn} · {hoveredSeat.status === "declared" ? "✓ Declared" : "⏳ Counting"} · Margin {hoveredSeat.margin}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom legend */}
-      <div style={{
-        display: "flex", justifyContent: "center", gap: 24, marginTop: 16,
-        flexWrap: "wrap", fontSize: 11, color: "#6b7d8e",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fb923c" }} />
-          Counting
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80" }} />
-          Declared
-        </div>
-        <div>Hover a seat for details · Click party to filter</div>
+      {/* Footer */}
+      <div className="px-8 pb-5 flex flex-wrap gap-5 text-xs text-slate-500 border-t border-slate-700/40 pt-4">
+        <span className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />{ne ? "घोषित" : "Declared"}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" />{ne ? "गणना हुँदै" : "Counting"}
+        </span>
+        <span className="ml-auto">
+          {ne ? "सिटमा होभर गर्नुहोस् · दललाई फिल्टर गर्न क्लिक गर्नुहोस्" : "Hover a seat for details · Click party to filter"}
+        </span>
       </div>
     </div>
   );
